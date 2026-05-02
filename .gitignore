@@ -1,0 +1,17 @@
+# Build output
+tasklang
+
+# Flex/Bison generated files
+lex.yy.c
+parser.tab.c
+parser.tab.h
+parser.output
+
+# Object and binary files
+*.o
+*.out
+*.exe
+
+# Editor and OS files
+.DS_Store
+.vscode/
