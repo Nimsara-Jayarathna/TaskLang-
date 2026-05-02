@@ -39,12 +39,26 @@ commands, run tasks, or perform real scheduling.
 ├── Makefile
 ├── README.md
 └── samples
-    ├── valid_daily.tl
-    ├── valid_workflow.tl
-    ├── valid_weekly.tl
-    ├── invalid_syntax_missing_run.tl
-    ├── invalid_unknown_dependency.tl
-    └── invalid_circular_dependency.tl
+    ├── valid
+    │   ├── valid_at_only.tl
+    │   ├── valid_comments.tl
+    │   ├── valid_daily.tl
+    │   ├── valid_depends_on.tl
+    │   ├── valid_flexible_order.tl
+    │   ├── valid_weekly.tl
+    │   └── valid_workflow.tl
+    └── invalid
+        ├── invalid_circular_dependency.tl
+        ├── invalid_duplicate_condition.tl
+        ├── invalid_duplicate_run.tl
+        ├── invalid_duplicate_schedule.tl
+        ├── invalid_duplicate_task.tl
+        ├── invalid_syntax_missing_run.tl
+        ├── invalid_time_format.tl
+        ├── invalid_time_range.tl
+        ├── invalid_unknown_condition.tl
+        ├── invalid_unknown_dependency.tl
+        └── invalid_unquoted_time_syntax.tl
 ```
 
 ## Requirements
@@ -77,7 +91,7 @@ This creates an executable named `tasklang`.
 Use input redirection to validate a TaskLang++ source file:
 
 ```sh
-./tasklang < samples/valid_daily.tl
+./tasklang < samples/valid/valid_daily.tl
 ```
 
 Expected successful output begins with:
@@ -92,21 +106,34 @@ Semantic validation completed successfully.
 Valid samples:
 
 ```sh
-./tasklang < samples/valid_daily.tl
-./tasklang < samples/valid_workflow.tl
-./tasklang < samples/valid_weekly.tl
+./tasklang < samples/valid/valid_daily.tl
+./tasklang < samples/valid/valid_workflow.tl
+./tasklang < samples/valid/valid_weekly.tl
+./tasklang < samples/valid/valid_at_only.tl
+./tasklang < samples/valid/valid_flexible_order.tl
+./tasklang < samples/valid/valid_comments.tl
+./tasklang < samples/valid/valid_depends_on.tl
 ```
 
 Invalid samples:
 
 ```sh
-./tasklang < samples/invalid_syntax_missing_run.tl
-./tasklang < samples/invalid_unknown_dependency.tl
-./tasklang < samples/invalid_circular_dependency.tl
+./tasklang < samples/invalid/invalid_syntax_missing_run.tl
+./tasklang < samples/invalid/invalid_unknown_dependency.tl
+./tasklang < samples/invalid/invalid_circular_dependency.tl
+./tasklang < samples/invalid/invalid_duplicate_task.tl
+./tasklang < samples/invalid/invalid_duplicate_run.tl
+./tasklang < samples/invalid/invalid_duplicate_schedule.tl
+./tasklang < samples/invalid/invalid_duplicate_condition.tl
+./tasklang < samples/invalid/invalid_unknown_condition.tl
+./tasklang < samples/invalid/invalid_time_format.tl
+./tasklang < samples/invalid/invalid_time_range.tl
+./tasklang < samples/invalid/invalid_unquoted_time_syntax.tl
 ```
 
 The invalid samples demonstrate missing required statements, unknown dependency
-references and circular dependency detection.
+and condition references, circular dependency detection, duplicate statements,
+duplicate task names, invalid times and syntax errors.
 
 ## Clean Generated Files
 
