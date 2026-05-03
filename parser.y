@@ -93,9 +93,9 @@ static void print_execution_task(const Task *task);
 %token RPAREN ")"
 %token <str> IDENTIFIER "identifier"
 %token <str> STRING "string"
-%token <str> UNKNOWN "unknown token"
+%token UNKNOWN "unknown token"
 
-%destructor { free($$); } IDENTIFIER STRING UNKNOWN
+%destructor { free($$); } IDENTIFIER STRING
 
 %%
 

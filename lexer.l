@@ -49,7 +49,6 @@ static char *copy_unquoted_string(const char *text);
                         }
 
 \"([^\\\"\n]|\\.)*     {
-                            yylval.str = strdup(yytext);
                             return UNKNOWN;
                         }
 
@@ -59,7 +58,6 @@ static char *copy_unquoted_string(const char *text);
                         }
 
 .                       {
-                            yylval.str = strdup(yytext);
                             return UNKNOWN;
                         }
 
