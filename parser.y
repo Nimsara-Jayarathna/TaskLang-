@@ -8,11 +8,14 @@
  * circular dependencies.
  */
 #include <ctype.h>
+#include <stdarg.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 
 #define MAX_TASKS 100
+#define MAX_SEMANTIC_MESSAGES 256
+#define MAX_SEMANTIC_MESSAGE_LEN 512
 #define MAX_NAME_LEN 64
 #define MAX_COMMAND_LEN 256
 #define MAX_SCHEDULE_TYPE_LEN 32
@@ -37,9 +40,11 @@ typedef struct Task {
 } Task;
 
 static Task tasks[MAX_TASKS];
+static char semanticMessages[MAX_SEMANTIC_MESSAGES][MAX_SEMANTIC_MESSAGE_LEN];
 static int taskCount = 0;
 static int currentTask = -1;
 static int semanticErrors = 0;
+static int semanticMessageCount = 0;
 static int syntaxErrors = 0;
 
 int yylex(void);
@@ -56,6 +61,8 @@ static void set_schedule(const char *scheduleType, const char *frequency,
 static void set_dependency(const char *dependency);
 static void set_before(const char *beforeTask);
 static void set_condition(const char *conditionTask);
+static void add_semantic_error(const char *format, ...);
+static void print_semantic_errors(void);
 static void copy_field(char *destination, size_t destinationSize,
                        const char *source, const char *fieldName);
 static int validate_semantics(void);
@@ -174,6 +181,8 @@ int main(void)
     validate_semantics();
 
     if (semanticErrors > 0) {
+        printf("Parsing completed successfully.\n");
+        print_semantic_errors();
         printf("Semantic validation failed with %d error(s).\n",
                semanticErrors);
         return EXIT_FAILURE;
@@ -200,10 +209,9 @@ static void begin_task(const char *name)
     Task *task;
 
     if (taskCount >= MAX_TASKS) {
-        fprintf(stdout,
-                "Semantic error at line %d: maximum number of tasks (%d) exceeded\n",
-                yylineno, MAX_TASKS);
-        semanticErrors++;
+        add_semantic_error(
+            "Semantic error at line %d: maximum number of tasks (%d) exceeded",
+            yylineno, MAX_TASKS);
         currentTask = -1;
         return;
     }
@@ -232,10 +240,9 @@ static void set_run(const char *command)
     task = &tasks[currentTask];
 
     if (task->hasRun) {
-        fprintf(stdout,
-                "Semantic error at line %d: duplicate RUN statement in task '%s'\n",
-                yylineno, task->name);
-        semanticErrors++;
+        add_semantic_error(
+            "Semantic error at line %d: duplicate RUN statement in task '%s'",
+            yylineno, task->name);
         return;
     }
 
@@ -255,10 +262,9 @@ static void set_schedule(const char *scheduleType, const char *frequency,
     task = &tasks[currentTask];
 
     if (task->hasSchedule) {
-        fprintf(stdout,
-                "Semantic error at line %d: duplicate schedule statement in task '%s'\n",
-                yylineno, task->name);
-        semanticErrors++;
+        add_semantic_error(
+            "Semantic error at line %d: duplicate schedule statement in task '%s'",
+            yylineno, task->name);
         return;
     }
 
@@ -281,18 +287,16 @@ static void set_dependency(const char *dependency)
     task = &tasks[currentTask];
 
     if (task->hasDependency) {
-        fprintf(stdout,
-                "Semantic error at line %d: duplicate dependency statement in task '%s'\n",
-                yylineno, task->name);
-        semanticErrors++;
+        add_semantic_error(
+            "Semantic error at line %d: duplicate dependency statement in task '%s'",
+            yylineno, task->name);
         return;
     }
 
     if (task->hasBefore) {
-        fprintf(stdout,
-                "Semantic error at line %d: duplicate dependency statement in task '%s'\n",
-                yylineno, task->name);
-        semanticErrors++;
+        add_semantic_error(
+            "Semantic error at line %d: duplicate dependency statement in task '%s'",
+            yylineno, task->name);
         return;
     }
 
@@ -312,10 +316,9 @@ static void set_before(const char *beforeTask)
     task = &tasks[currentTask];
 
     if (task->hasDependency || task->hasBefore) {
-        fprintf(stdout,
-                "Semantic error at line %d: duplicate dependency statement in task '%s'\n",
-                yylineno, task->name);
-        semanticErrors++;
+        add_semantic_error(
+            "Semantic error at line %d: duplicate dependency statement in task '%s'",
+            yylineno, task->name);
         return;
     }
 
@@ -335,10 +338,9 @@ static void set_condition(const char *conditionTask)
     task = &tasks[currentTask];
 
     if (task->hasCondition) {
-        fprintf(stdout,
-                "Semantic error at line %d: duplicate condition statement in task '%s'\n",
-                yylineno, task->name);
-        semanticErrors++;
+        add_semantic_error(
+            "Semantic error at line %d: duplicate condition statement in task '%s'",
+            yylineno, task->name);
         return;
     }
 
@@ -347,14 +349,42 @@ static void set_condition(const char *conditionTask)
                "condition task");
 }
 
+static void add_semantic_error(const char *format, ...)
+{
+    va_list args;
+
+    if (semanticMessageCount < MAX_SEMANTIC_MESSAGES) {
+        va_start(args, format);
+        vsnprintf(semanticMessages[semanticMessageCount],
+                  sizeof(semanticMessages[semanticMessageCount]), format,
+                  args);
+        va_end(args);
+        semanticMessageCount++;
+    }
+
+    semanticErrors++;
+}
+
+static void print_semantic_errors(void)
+{
+    int i;
+
+    for (i = 0; i < semanticMessageCount; i++) {
+        printf("%s\n", semanticMessages[i]);
+    }
+
+    if (semanticErrors > semanticMessageCount) {
+        printf("Semantic error: too many semantic errors to display completely\n");
+    }
+}
+
 static void copy_field(char *destination, size_t destinationSize,
                        const char *source, const char *fieldName)
 {
     if (strlen(source) >= destinationSize) {
-        fprintf(stdout,
-                "Semantic error at line %d: %s is too long and was truncated\n",
-                yylineno, fieldName);
-        semanticErrors++;
+        add_semantic_error(
+            "Semantic error at line %d: %s is too long and was truncated",
+            yylineno, fieldName);
     }
 
     snprintf(destination, destinationSize, "%s", source);
@@ -369,47 +399,41 @@ static int validate_semantics(void)
     for (i = 0; i < taskCount; i++) {
         for (j = i + 1; j < taskCount; j++) {
             if (strcmp(tasks[i].name, tasks[j].name) == 0) {
-                fprintf(stdout, "Semantic error: duplicate task name '%s'\n",
-                        tasks[i].name);
-                semanticErrors++;
+                add_semantic_error("Semantic error: duplicate task name '%s'",
+                                   tasks[i].name);
             }
         }
     }
 
     for (i = 0; i < taskCount; i++) {
         if (!tasks[i].hasRun) {
-            fprintf(stdout,
-                    "Semantic error: task '%s' is missing required RUN statement\n",
-                    tasks[i].name);
-            semanticErrors++;
+            add_semantic_error(
+                "Semantic error: task '%s' is missing required RUN statement",
+                tasks[i].name);
         }
 
         if (tasks[i].hasSchedule && !validate_time(tasks[i].time)) {
-            fprintf(stdout,
-                    "Semantic error: task '%s' has invalid time '%s' (expected HH:MM)\n",
-                    tasks[i].name, tasks[i].time);
-            semanticErrors++;
+            add_semantic_error(
+                "Semantic error: task '%s' has invalid time '%s' (expected HH:MM)",
+                tasks[i].name, tasks[i].time);
         }
 
         if (tasks[i].hasDependency && find_task(tasks[i].dependency) < 0) {
-            fprintf(stdout,
-                    "Semantic error: task '%s' depends on unknown task '%s'\n",
-                    tasks[i].name, tasks[i].dependency);
-            semanticErrors++;
+            add_semantic_error(
+                "Semantic error: task '%s' depends on unknown task '%s'",
+                tasks[i].name, tasks[i].dependency);
         }
 
         if (tasks[i].hasBefore && find_task(tasks[i].beforeTask) < 0) {
-            fprintf(stdout,
-                    "Semantic error: task '%s' must run before unknown task '%s'\n",
-                    tasks[i].name, tasks[i].beforeTask);
-            semanticErrors++;
+            add_semantic_error(
+                "Semantic error: task '%s' must run before unknown task '%s'",
+                tasks[i].name, tasks[i].beforeTask);
         }
 
         if (tasks[i].hasCondition && find_task(tasks[i].conditionTask) < 0) {
-            fprintf(stdout,
-                    "Semantic error: task '%s' has condition on unknown task '%s'\n",
-                    tasks[i].name, tasks[i].conditionTask);
-            semanticErrors++;
+            add_semantic_error(
+                "Semantic error: task '%s' has condition on unknown task '%s'",
+                tasks[i].name, tasks[i].conditionTask);
         }
     }
 
@@ -508,10 +532,9 @@ static int dfs_cycle(int index, int *state)
         }
 
         if (state[dependencyIndex] == 1) {
-            fprintf(stdout,
-                    "Semantic error: circular dependency detected involving task '%s'\n",
-                    tasks[dependencyIndex].name);
-            semanticErrors++;
+            add_semantic_error(
+                "Semantic error: circular dependency detected involving task '%s'",
+                tasks[dependencyIndex].name);
             return 1;
         }
 
