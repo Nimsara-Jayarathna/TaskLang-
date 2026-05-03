@@ -60,7 +60,9 @@ static int validate_time(const char *time);
 static int find_task(const char *name);
 static int detect_cycles(void);
 static int dfs_cycle(int index, int *state);
-static void print_tasks(void);
+void print_execution(void);
+static void print_execution_ordered(int index, int *printed);
+static void print_execution_task(const Task *task);
 %}
 
 %error-verbose
@@ -159,8 +161,6 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    printf("Parsing completed successfully.\n");
-
     validate_semantics();
 
     if (semanticErrors > 0) {
@@ -169,8 +169,7 @@ int main(void)
         return EXIT_FAILURE;
     }
 
-    printf("Semantic validation completed successfully.\n\n");
-    print_tasks();
+    print_execution();
     return EXIT_SUCCESS;
 }
 
@@ -458,35 +457,76 @@ static int dfs_cycle(int index, int *state)
     return 0;
 }
 
-static void print_tasks(void)
+/*
+ * Print a simulated execution flow. This function does not execute scripts;
+ * it only displays the order and metadata that would be used by a scheduler.
+ */
+void print_execution(void)
 {
+    int printed[MAX_TASKS];
     int i;
 
-    printf("Tasks parsed:\n");
+    for (i = 0; i < taskCount; i++) {
+        printed[i] = 0;
+    }
+
+    printf("Parsing TaskLang++ input...\n\n");
+    printf("--- EXECUTION START ---\n\n");
 
     for (i = 0; i < taskCount; i++) {
-        printf("- %s\n", tasks[i].name);
-        printf("  Command: %s\n", tasks[i].command);
+        print_execution_ordered(i, printed);
+    }
 
-        if (tasks[i].hasSchedule) {
-            if (strcmp(tasks[i].scheduleType, "EVERY") == 0) {
-                printf("  Schedule: EVERY %s AT %s\n",
-                       tasks[i].frequency, tasks[i].time);
-            } else {
-                printf("  Schedule: AT %s\n", tasks[i].time);
-            }
-        }
+    printf("--- EXECUTION COMPLETE ---\n");
+}
 
-        if (tasks[i].hasDependency) {
-            printf("  Depends on: %s\n", tasks[i].dependency);
-        }
+/*
+ * Bonus behavior: print dependency tasks first. Semantic validation has already
+ * rejected unknown and circular dependencies before this function is called.
+ */
+static void print_execution_ordered(int index, int *printed)
+{
+    int dependencyIndex;
 
-        if (tasks[i].hasCondition) {
-            printf("  Condition: success(%s)\n", tasks[i].conditionTask);
-        }
+    if (printed[index]) {
+        return;
+    }
 
-        if (i + 1 < taskCount) {
-            printf("\n");
+    if (tasks[index].hasDependency) {
+        dependencyIndex = find_task(tasks[index].dependency);
+
+        if (dependencyIndex >= 0) {
+            print_execution_ordered(dependencyIndex, printed);
         }
     }
+
+    print_execution_task(&tasks[index]);
+    printed[index] = 1;
+}
+
+static void print_execution_task(const Task *task)
+{
+    printf("Executing Task: %s\n", task->name);
+    printf("  Script: \"%s\"\n", task->command);
+
+    if (task->hasSchedule) {
+        if (strcmp(task->scheduleType, "EVERY") == 0) {
+            printf("  Schedule: EVERY %s AT %s\n",
+                   task->frequency, task->time);
+        } else {
+            printf("  Schedule: AT %s\n", task->time);
+        }
+    } else {
+        printf("  Schedule:\n");
+    }
+
+    if (task->hasDependency) {
+        printf("  Depends on: %s\n", task->dependency);
+    }
+
+    if (task->hasCondition) {
+        printf("  Condition: success\n");
+    }
+
+    printf("\n");
 }

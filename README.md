@@ -94,12 +94,22 @@ Use input redirection to validate a TaskLang++ source file:
 ./tasklang < samples/valid/valid_daily.tl
 ```
 
-Expected successful output begins with:
+Expected successful output:
 
 ```txt
-Parsing completed successfully.
-Semantic validation completed successfully.
+Parsing TaskLang++ input...
+
+--- EXECUTION START ---
+
+Executing Task: backup
+  Script: "backup.sh"
+  Schedule: EVERY DAY AT 02:00
+
+--- EXECUTION COMPLETE ---
 ```
+
+This is simulated execution output only. The program never runs the script with
+`system()` or any other execution call.
 
 ## Sample Programs
 
