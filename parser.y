@@ -109,8 +109,8 @@ task_list
     ;
 
 task_definition
-    : TASK IDENTIFIER { begin_task($2); free($2); }
-      LBRACE task_body RBRACE  { finish_task(); }
+    : TASK IDENTIFIER { begin_task($2); }
+      LBRACE task_body RBRACE  { finish_task(); free($2); }
     ;
 
 task_body

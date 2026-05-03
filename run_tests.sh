@@ -31,8 +31,14 @@ printf '\nRunning invalid samples...\n'
 for file in samples/invalid/*.tl; do
     invalid_count=$((invalid_count + 1))
 
-    if ./tasklang < "$file" >/dev/null 2>&1; then
+    ./tasklang < "$file" >/dev/null 2>&1
+    status=$?
+
+    if [ "$status" -eq 0 ]; then
         printf '  FAIL invalid: %s unexpectedly passed\n' "$file"
+        fail_count=$((fail_count + 1))
+    elif [ "$status" -ge 128 ]; then
+        printf '  FAIL invalid: %s crashed with status %d\n' "$file" "$status"
         fail_count=$((fail_count + 1))
     else
         printf '  PASS invalid: %s\n' "$file"
