@@ -26,10 +26,12 @@ typedef struct Task {
     char frequency[MAX_FREQUENCY_LEN];
     char time[MAX_TIME_LEN];
     char dependency[MAX_NAME_LEN];
+    char beforeTask[MAX_NAME_LEN];
     char conditionTask[MAX_NAME_LEN];
     int hasRun;
     int hasSchedule;
     int hasDependency;
+    int hasBefore;
     int hasCondition;
     int line;
 } Task;
@@ -52,12 +54,14 @@ static void set_run(const char *command);
 static void set_schedule(const char *scheduleType, const char *frequency,
                          const char *time);
 static void set_dependency(const char *dependency);
+static void set_before(const char *beforeTask);
 static void set_condition(const char *conditionTask);
 static void copy_field(char *destination, size_t destinationSize,
                        const char *source, const char *fieldName);
 static int validate_semantics(void);
 static int validate_time(const char *time);
 static int find_task(const char *name);
+static int task_depends_on(int taskIndex, int prerequisiteIndex);
 static int detect_cycles(void);
 static int dfs_cycle(int index, int *state);
 void print_execution(void);
@@ -78,6 +82,7 @@ static void print_execution_task(const Task *task);
 %token WEEK "WEEK"
 %token AT "AT"
 %token AFTER "AFTER"
+%token BEFORE "BEFORE"
 %token DEPENDS "DEPENDS"
 %token ON "ON"
 %token IF "IF"
@@ -137,6 +142,11 @@ task_statement
     | AFTER IDENTIFIER
         {
             set_dependency($2);
+            free($2);
+        }
+    | BEFORE IDENTIFIER
+        {
+            set_before($2);
             free($2);
         }
     | DEPENDS ON IDENTIFIER
@@ -278,9 +288,40 @@ static void set_dependency(const char *dependency)
         return;
     }
 
+    if (task->hasBefore) {
+        fprintf(stdout,
+                "Semantic error at line %d: duplicate dependency statement in task '%s'\n",
+                yylineno, task->name);
+        semanticErrors++;
+        return;
+    }
+
     task->hasDependency = 1;
     copy_field(task->dependency, sizeof(task->dependency), dependency,
                "dependency");
+}
+
+static void set_before(const char *beforeTask)
+{
+    Task *task;
+
+    if (currentTask < 0) {
+        return;
+    }
+
+    task = &tasks[currentTask];
+
+    if (task->hasDependency || task->hasBefore) {
+        fprintf(stdout,
+                "Semantic error at line %d: duplicate dependency statement in task '%s'\n",
+                yylineno, task->name);
+        semanticErrors++;
+        return;
+    }
+
+    task->hasBefore = 1;
+    copy_field(task->beforeTask, sizeof(task->beforeTask), beforeTask,
+               "BEFORE task");
 }
 
 static void set_condition(const char *conditionTask)
@@ -357,6 +398,13 @@ static int validate_semantics(void)
             semanticErrors++;
         }
 
+        if (tasks[i].hasBefore && find_task(tasks[i].beforeTask) < 0) {
+            fprintf(stdout,
+                    "Semantic error: task '%s' must run before unknown task '%s'\n",
+                    tasks[i].name, tasks[i].beforeTask);
+            semanticErrors++;
+        }
+
         if (tasks[i].hasCondition && find_task(tasks[i].conditionTask) < 0) {
             fprintf(stdout,
                     "Semantic error: task '%s' has condition on unknown task '%s'\n",
@@ -406,6 +454,26 @@ static int find_task(const char *name)
     return -1;
 }
 
+/*
+ * Dependency direction used by validation and execution ordering:
+ * - AFTER/DEPENDS ON: the current task depends on the named task.
+ * - BEFORE: the named task depends on the current task.
+ */
+static int task_depends_on(int taskIndex, int prerequisiteIndex)
+{
+    if (tasks[taskIndex].hasDependency &&
+        strcmp(tasks[taskIndex].dependency, tasks[prerequisiteIndex].name) == 0) {
+        return 1;
+    }
+
+    if (tasks[prerequisiteIndex].hasBefore &&
+        strcmp(tasks[prerequisiteIndex].beforeTask, tasks[taskIndex].name) == 0) {
+        return 1;
+    }
+
+    return 0;
+}
+
 static int detect_cycles(void)
 {
     int state[MAX_TASKS];
@@ -434,22 +502,22 @@ static int dfs_cycle(int index, int *state)
 
     state[index] = 1;
 
-    if (tasks[index].hasDependency) {
-        dependencyIndex = find_task(tasks[index].dependency);
+    for (dependencyIndex = 0; dependencyIndex < taskCount; dependencyIndex++) {
+        if (!task_depends_on(index, dependencyIndex)) {
+            continue;
+        }
 
-        if (dependencyIndex >= 0) {
-            if (state[dependencyIndex] == 1) {
-                fprintf(stdout,
-                        "Semantic error: circular dependency detected involving task '%s'\n",
-                        tasks[dependencyIndex].name);
-                semanticErrors++;
-                return 1;
-            }
+        if (state[dependencyIndex] == 1) {
+            fprintf(stdout,
+                    "Semantic error: circular dependency detected involving task '%s'\n",
+                    tasks[dependencyIndex].name);
+            semanticErrors++;
+            return 1;
+        }
 
-            if (state[dependencyIndex] == 0 &&
-                dfs_cycle(dependencyIndex, state)) {
-                return 1;
-            }
+        if (state[dependencyIndex] == 0 &&
+            dfs_cycle(dependencyIndex, state)) {
+            return 1;
         }
     }
 
@@ -492,10 +560,8 @@ static void print_execution_ordered(int index, int *printed)
         return;
     }
 
-    if (tasks[index].hasDependency) {
-        dependencyIndex = find_task(tasks[index].dependency);
-
-        if (dependencyIndex >= 0) {
+    for (dependencyIndex = 0; dependencyIndex < taskCount; dependencyIndex++) {
+        if (task_depends_on(index, dependencyIndex)) {
             print_execution_ordered(dependencyIndex, printed);
         }
     }
@@ -522,6 +588,10 @@ static void print_execution_task(const Task *task)
 
     if (task->hasDependency) {
         printf("  Depends on: %s\n", task->dependency);
+    }
+
+    if (task->hasBefore) {
+        printf("  Before: %s\n", task->beforeTask);
     }
 
     if (task->hasCondition) {

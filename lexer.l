@@ -32,6 +32,7 @@ static char *copy_unquoted_string(const char *text);
 "WEEK"                  { return WEEK; }
 "AT"                    { return AT; }
 "AFTER"                 { return AFTER; }
+"BEFORE"                { return BEFORE; }
 "DEPENDS"               { return DEPENDS; }
 "ON"                    { return ON; }
 "IF"                    { return IF; }

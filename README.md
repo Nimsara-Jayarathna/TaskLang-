@@ -17,6 +17,7 @@ commands, run tasks, or perform real scheduling.
   - `AT "HH:MM"`
 - Optional dependency statements:
   - `AFTER taskName`
+  - `BEFORE taskName`
   - `DEPENDS ON taskName`
 - Optional condition statements:
   - `IF success(taskName)`
@@ -38,9 +39,11 @@ commands, run tasks, or perform real scheduling.
 ├── parser.y
 ├── Makefile
 ├── README.md
+├── run_tests.sh
 └── samples
     ├── valid
     │   ├── valid_at_only.tl
+    │   ├── valid_before.tl
     │   ├── valid_comments.tl
     │   ├── valid_daily.tl
     │   ├── valid_depends_on.tl
@@ -48,7 +51,9 @@ commands, run tasks, or perform real scheduling.
     │   ├── valid_weekly.tl
     │   └── valid_workflow.tl
     └── invalid
+        ├── invalid_circular_before.tl
         ├── invalid_circular_dependency.tl
+        ├── invalid_duplicate_dependency.tl
         ├── invalid_duplicate_condition.tl
         ├── invalid_duplicate_run.tl
         ├── invalid_duplicate_schedule.tl
@@ -56,6 +61,7 @@ commands, run tasks, or perform real scheduling.
         ├── invalid_syntax_missing_run.tl
         ├── invalid_time_format.tl
         ├── invalid_time_range.tl
+        ├── invalid_unknown_before.tl
         ├── invalid_unknown_condition.tl
         ├── invalid_unknown_dependency.tl
         └── invalid_unquoted_time_syntax.tl
@@ -123,6 +129,7 @@ Valid samples:
 ./tasklang < samples/valid/valid_flexible_order.tl
 ./tasklang < samples/valid/valid_comments.tl
 ./tasklang < samples/valid/valid_depends_on.tl
+./tasklang < samples/valid/valid_before.tl
 ```
 
 Invalid samples:
@@ -130,9 +137,12 @@ Invalid samples:
 ```sh
 ./tasklang < samples/invalid/invalid_syntax_missing_run.tl
 ./tasklang < samples/invalid/invalid_unknown_dependency.tl
+./tasklang < samples/invalid/invalid_unknown_before.tl
 ./tasklang < samples/invalid/invalid_circular_dependency.tl
+./tasklang < samples/invalid/invalid_circular_before.tl
 ./tasklang < samples/invalid/invalid_duplicate_task.tl
 ./tasklang < samples/invalid/invalid_duplicate_run.tl
+./tasklang < samples/invalid/invalid_duplicate_dependency.tl
 ./tasklang < samples/invalid/invalid_duplicate_schedule.tl
 ./tasklang < samples/invalid/invalid_duplicate_condition.tl
 ./tasklang < samples/invalid/invalid_unknown_condition.tl
@@ -144,6 +154,17 @@ Invalid samples:
 The invalid samples demonstrate missing required statements, unknown dependency
 and condition references, circular dependency detection, duplicate statements,
 duplicate task names, invalid times and syntax errors.
+
+## Run All Tests
+
+Use the test script to build the project and check every sample file:
+
+```sh
+./run_tests.sh
+```
+
+The script expects all files in `samples/valid` to pass and all files in
+`samples/invalid` to fail.
 
 ## Clean Generated Files
 
