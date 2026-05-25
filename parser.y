@@ -53,26 +53,45 @@ void yyerror(const char *message);
 extern int yylineno;
 extern char *yytext;
 
+/* Start recording a new TASK block into the in-memory task list. */
 static void begin_task(const char *name);
+/* Finish the current TASK block (stop writing fields into it). */
 static void finish_task(void);
+/* Store the RUN command for the current task and reject duplicates. */
 static void set_run(const char *command);
+/* Store schedule information (EVERY DAY/WEEK or AT) and reject duplicates. */
 static void set_schedule(const char *scheduleType, const char *frequency,
                          const char *time);
+/* Store an AFTER/DEPENDS ON relationship and reject conflicting duplicates. */
 static void set_dependency(const char *dependency);
+/* Store a BEFORE relationship and reject conflicting duplicates. */
 static void set_before(const char *beforeTask);
+/* Store an IF success(task) condition and reject duplicates. */
 static void set_condition(const char *conditionTask);
+/* Record a human-readable semantic error message for later printing. */
 static void add_semantic_error(const char *format, ...);
+/* Print all collected semantic errors in a user-friendly list. */
 static void print_semantic_errors(void);
+/* Safely copy text into fixed-size fields (warn + truncate if too long). */
 static void copy_field(char *destination, size_t destinationSize,
                        const char *source, const char *fieldName);
+/* Run all post-parse "meaning" checks (required fields, references, cycles). */
 static int validate_semantics(void);
+/* Check whether a time string is a valid HH:MM in 24-hour format. */
 static int validate_time(const char *time);
+/* Find a task index by name (returns -1 when not found). */
 static int find_task(const char *name);
+/* Decide if one task depends on another (used for ordering + cycle checks). */
 static int task_depends_on(int taskIndex, int prerequisiteIndex);
+/* Detect circular dependencies across all tasks (reports semantic errors). */
 static int detect_cycles(void);
+/* Depth-first search helper used by detect_cycles(). */
 static int dfs_cycle(int index, int *state);
+/* Print a simulated "execution plan" (order + metadata), without running code. */
 void print_execution(void);
+/* Print prerequisite tasks before the given task (dependency-first ordering). */
 static void print_execution_ordered(int index, int *printed);
+/* Print one task's details (name, command, schedule, dependencies, condition). */
 static void print_execution_task(const Task *task);
 %}
 
@@ -172,12 +191,14 @@ task_statement
 
 int main(void)
 {
+    /* Parse the input first; if syntax fails, stop immediately. */
     int parseResult = yyparse();
 
     if (parseResult != 0 || syntaxErrors > 0) {
         return EXIT_FAILURE;
     }
 
+    /* After a clean parse, run semantic validation (cross-task rules). */
     validate_semantics();
 
     if (semanticErrors > 0) {
@@ -194,6 +215,7 @@ int main(void)
 
 void yyerror(const char *message)
 {
+    /* Report grammar/syntax problems with line context for debugging input. */
     syntaxErrors++;
 
     if (yytext != NULL && yytext[0] != '\0') {
@@ -206,6 +228,7 @@ void yyerror(const char *message)
 
 static void begin_task(const char *name)
 {
+    /* Create a new task entry and mark it as the "current task" being filled. */
     Task *task;
 
     if (taskCount >= MAX_TASKS) {
@@ -226,11 +249,13 @@ static void begin_task(const char *name)
 
 static void finish_task(void)
 {
+    /* Clear the current-task pointer so statements outside a task are ignored. */
     currentTask = -1;
 }
 
 static void set_run(const char *command)
 {
+    /* Save the RUN string for the current task (only allowed once). */
     Task *task;
 
     if (currentTask < 0) {
@@ -253,6 +278,7 @@ static void set_run(const char *command)
 static void set_schedule(const char *scheduleType, const char *frequency,
                          const char *time)
 {
+    /* Save schedule fields for the current task (only one schedule allowed). */
     Task *task;
 
     if (currentTask < 0) {
@@ -278,6 +304,7 @@ static void set_schedule(const char *scheduleType, const char *frequency,
 
 static void set_dependency(const char *dependency)
 {
+    /* Save a dependency for the current task and prevent multiple dependency rules. */
     Task *task;
 
     if (currentTask < 0) {
@@ -307,6 +334,7 @@ static void set_dependency(const char *dependency)
 
 static void set_before(const char *beforeTask)
 {
+    /* Save a BEFORE relationship for the current task and prevent conflicts. */
     Task *task;
 
     if (currentTask < 0) {
@@ -329,6 +357,7 @@ static void set_before(const char *beforeTask)
 
 static void set_condition(const char *conditionTask)
 {
+    /* Save an IF success(task) condition for the current task (only once). */
     Task *task;
 
     if (currentTask < 0) {
@@ -351,6 +380,7 @@ static void set_condition(const char *conditionTask)
 
 static void add_semantic_error(const char *format, ...)
 {
+    /* Store an error message (up to a limit) and increment the error count. */
     va_list args;
 
     if (semanticMessageCount < MAX_SEMANTIC_MESSAGES) {
@@ -367,6 +397,7 @@ static void add_semantic_error(const char *format, ...)
 
 static void print_semantic_errors(void)
 {
+    /* Print all stored semantic error messages in the order they were found. */
     int i;
 
     for (i = 0; i < semanticMessageCount; i++) {
@@ -381,6 +412,7 @@ static void print_semantic_errors(void)
 static void copy_field(char *destination, size_t destinationSize,
                        const char *source, const char *fieldName)
 {
+    /* Copy into a fixed-size buffer; warn when truncation might occur. */
     if (strlen(source) >= destinationSize) {
         add_semantic_error(
             "Semantic error at line %d: %s is too long and was truncated",
@@ -392,6 +424,7 @@ static void copy_field(char *destination, size_t destinationSize,
 
 static int validate_semantics(void)
 {
+    /* Enforce rules that require looking across tasks, not just local grammar. */
     int before = semanticErrors;
     int i;
     int j;
@@ -444,6 +477,7 @@ static int validate_semantics(void)
 
 static int validate_time(const char *time)
 {
+    /* Accept only strict 24-hour times like 00:00 through 23:59. */
     int hour;
     int minute;
 
@@ -467,6 +501,7 @@ static int validate_time(const char *time)
 
 static int find_task(const char *name)
 {
+    /* Linear lookup by task name (sufficient for the assignment-sized inputs). */
     int i;
 
     for (i = 0; i < taskCount; i++) {
@@ -485,6 +520,7 @@ static int find_task(const char *name)
  */
 static int task_depends_on(int taskIndex, int prerequisiteIndex)
 {
+    /* Normalize AFTER/DEPENDS and BEFORE into one "depends on" direction. */
     if (tasks[taskIndex].hasDependency &&
         strcmp(tasks[taskIndex].dependency, tasks[prerequisiteIndex].name) == 0) {
         return 1;
@@ -500,6 +536,7 @@ static int task_depends_on(int taskIndex, int prerequisiteIndex)
 
 static int detect_cycles(void)
 {
+    /* Run DFS from each task to find dependency loops (A -> ... -> A). */
     int state[MAX_TASKS];
     int i;
 
@@ -522,6 +559,7 @@ static int detect_cycles(void)
  */
 static int dfs_cycle(int index, int *state)
 {
+    /* DFS recursion: "visiting" nodes detect back-edges which indicate cycles. */
     int dependencyIndex;
 
     state[index] = 1;
@@ -554,6 +592,7 @@ static int dfs_cycle(int index, int *state)
  */
 void print_execution(void)
 {
+    /* Print a dependency-respecting plan; this is display-only (no execution). */
     int printed[MAX_TASKS];
     int i;
 
@@ -577,6 +616,7 @@ void print_execution(void)
  */
 static void print_execution_ordered(int index, int *printed)
 {
+    /* Ensure prerequisites are printed first by recursively printing dependencies. */
     int dependencyIndex;
 
     if (printed[index]) {
@@ -595,6 +635,7 @@ static void print_execution_ordered(int index, int *printed)
 
 static void print_execution_task(const Task *task)
 {
+    /* Print one task's stored metadata in a readable format. */
     printf("Executing Task: %s\n", task->name);
     printf("  Script: \"%s\"\n", task->command);
 
